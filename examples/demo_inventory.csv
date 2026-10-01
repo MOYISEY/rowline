@@ -1,0 +1,14 @@
+sku,name,stock,status,email,updated_at
+00124,  Настольная лампа  ,12,active,lamp@example.test,2026-09-28
+00125,Подставка для ноутбука,8,active,stand@example.test,2026-09-29
+00124,Настольная лампа,12,active,lamp@example.test,2026-09-28
+00126,"Блокнот, в точку",-3,active,notes@example.test,2026-09-30
+,Органайзер,6,active,organizer@example.test,2026-09-30
+00128,Кабель USB-C,много,active,cable@example.test,2026-09-30
+00129,Термокружка,4,ACTIVE,cup@example.test,2026-09-30
+00130,  Чехол    для планшета ,7,draft,case@example.test,2026-09-30
+00131,Сумка,2,archived,bag@example.test,2026-09-30
+00132,"Набор стикеров
+Көк / синий",10,active,stickers@example.test,2026-09-30
+90071992547409931234,Держатель телефона,5,active,holder@example.test,2026-09-30
+00134,Коврик для мыши,0,active,mat@example.test,2026-09-30

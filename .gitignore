@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.vite/
+.env*
+!.env.example
+publication.json
+scripts/publish.mjs
+qa-local/
+*.log
