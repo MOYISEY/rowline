@@ -48,4 +48,21 @@ Desktop viewport 1440×1000; mobile viewport 390×844. Chromium/WebKit mobile и
 
 Локальная production-сборка: **66 passed, 0 failed, 0 skipped**, 4.1 минуты. Каждый из шести профилей прошёл все 11 сценариев: Chromium, Firefox и WebKit при desktop и mobile viewport. Проверены реальные downloads и реимпорт, два разных пути ввода 10 000 записей (файл и paste event), повреждённые данные, recipes/backups, добровольное хранение и его отказ, XSS/formula protection и accessibility.
 
-Machine-readable local evidence: `qa-local/local-final-results.json` (ignored, синтетические данные). Финальные результаты live-проверки добавляются после публикации и фактического прогона.
+Реальный live на [GitHub Pages](https://moyisey.github.io/rowline/): **66 passed, 0 failed, 0 skipped, 0 flaky**, 4.1 минуты; начало 2026-10-01 21:20:16 UTC. Запущен с `BASE_URL=https://moyisey.github.io/rowline/`, без локального webServer.
+
+| Браузерный профиль | Local production | Real live |
+| --- | ---: | ---: |
+| Chromium desktop | 11/11 | 11/11 |
+| Firefox desktop | 11/11 | 11/11 |
+| WebKit desktop | 11/11 | 11/11 |
+| Chromium mobile emulation | 11/11 | 11/11 |
+| Firefox narrow viewport + touch | 11/11 | 11/11 |
+| WebKit mobile emulation | 11/11 | 11/11 |
+
+Pages успешно опубликовал source commit `72ce76e380a64eebd889e17033768201a2a8576b`; [deployment run](https://github.com/MOYISEY/rowline/actions/runs/36927839182) завершён с `success`. Реальный URL возвращает HTTP 200. Live `index.html`, JS bundle, CSS и worker побайтно совпали с локально проверенными файлами `docs/`. Финальное обновление документации и live-screenshots не меняет приложение или собранные assets.
+
+[GitHub CI этого source commit](https://github.com/MOYISEY/rowline/actions/runs/36927797997) завершён с `success` на Ubuntu: `npm ci`, 29 unit/security tests, strict TypeScript/Vite build, установка Chromium/Firefox/WebKit и полный E2E-набор. Финальный commit документации использует `[skip ci]`: повторять те же проверки неизменного кода после обновления отчёта и изображения не требуется. Pages deployment проверен отдельно.
+
+Live import + worker + render 10 000×3: Chromium desktop 560 ms / mobile 549 ms, Firefox desktop 504 ms / narrow 504 ms, WebKit desktop 829 ms / mobile 383 ms. Это конкретный прогон с двумя parallel test workers; значения не являются гарантией для устройств пользователей.
+
+Machine-readable evidence: `qa-local/local-final-results.json` и `qa-local/live-final-results.json` (ignored, синтетические данные). Публичные `media/rowline-desktop.png` и `media/rowline-mobile.png` сняты с реального live в этом прогоне.
