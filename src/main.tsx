@@ -40,7 +40,8 @@ function App() {
   const engine = useEngine();
   const [dataset, setDataset] = useState<Dataset | null>(null), [workspace, setWorkspace] = useState<Workspace | null>(null), [result, setResult] = useState<Result>(INITIAL);
   const [history, setHistory] = useState<Workspace[]>([]), [future, setFuture] = useState<Workspace[]>([]);
-  const [busy, setBusy] = useState(false), [processingError, setProcessingError] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
+  const [processing, setProcessing] = useState(false), [importing, setImporting] = useState(false), [processingError, setProcessingError] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
+  const busy = processing || importing;
   const [modal, setModal] = useState<'import' | 'rule' | 'export' | 'help' | 'exclude' | 'duplicates' | 'reset' | null>(null);
   const [paste, setPaste] = useState(''), [delimiter, setDelimiter] = useState<Delimiter>(''), [encoding, setEncoding] = useState('utf-8');
   const [selected, setSelected] = useState<number | null>(null), [selectedCol, setSelectedCol] = useState<number | null>(null), [inspector, setInspector] = useState<'issues' | 'column' | 'row'>('issues');
@@ -50,14 +51,16 @@ function App() {
   const [ruleKind, setRuleKind] = useState<RuleKind>('trim'), [ruleCol, setRuleCol] = useState('*'), [ruleFrom, setRuleFrom] = useState(''), [ruleTo, setRuleTo] = useState(''), [rulePreview, setRulePreview] = useState<Result | null>(null), [previewBusy, setPreviewBusy] = useState(false);
   const [exportOptions, setExportOptions] = useState<ExportOptions>(DEFAULT_EXPORT);
   const [optIn, setOptIn] = useState(false), [savedBackup, setSavedBackup] = useState(''), [dragging, setDragging] = useState(false);
-  const csvInput = useRef<HTMLInputElement>(null), recipeInput = useRef<HTMLInputElement>(null), backupInput = useRef<HTMLInputElement>(null), processId = useRef(0), previewId = useRef(0);
+  const csvInput = useRef<HTMLInputElement>(null), recipeInput = useRef<HTMLInputElement>(null), backupInput = useRef<HTMLInputElement>(null), processId = useRef(0), previewId = useRef(0), loadId = useRef(0);
+  const prepared = useRef<{ dataset: Dataset; workspace: Workspace } | null>(null);
   const draftRule = (): Rule => ({ id: crypto.randomUUID(), kind: ruleKind, column: ruleKind === 'empty' || ruleCol === '*' ? null : ruleCol, enabled: true, from: ruleFrom, to: ruleTo });
 
   useEffect(() => { try { setSavedBackup(localStorage.getItem(WORK_KEY) || ''); } catch { setNotice('Хранилище браузера недоступно. Работа и скачивание файлов доступны.'); } }, []);
   useEffect(() => {
     if (!dataset || !workspace) return;
-    const id = ++processId.current; setBusy(true); setProcessingError(false);
-    engine<Result>('process', { dataset, workspace }).then(r => { if (id === processId.current) { setResult(r); setBusy(false); } }).catch(e => { if (id === processId.current) { setProcessingError(true); setError(e.message); setBusy(false); } });
+    if (prepared.current?.dataset === dataset && prepared.current.workspace === workspace) { prepared.current = null; return; }
+    const id = ++processId.current; setProcessing(true); setProcessingError(false);
+    engine<Result>('process', { dataset, workspace }).then(r => { if (id === processId.current) { setResult(r); setProcessing(false); } }).catch(e => { if (id === processId.current) { setProcessingError(true); setError(e.message); setProcessing(false); } });
   }, [dataset, workspace, engine]);
   useEffect(() => {
     if (!optIn || !dataset || !workspace) return;
@@ -91,21 +94,37 @@ function App() {
   function undo() { if (!history.length || !workspace || busy) return; setFuture(f => [workspace, ...f]); setWorkspace(history.at(-1)!); setHistory(h => h.slice(0, -1)); setNotice('Последнее действие отменено.'); }
   function redo() { if (!future.length || !workspace || busy) return; setHistory(h => [...h, workspace]); setWorkspace(future[0]); setFuture(f => f.slice(1)); setNotice('Действие возвращено.'); }
   function clearPersistence() { try { localStorage.removeItem(WORK_KEY); setSavedBackup(''); } catch { setError('Браузер запретил удалить сохранённую работу. Удалите данные сайта в настройках браузера.'); } }
-  async function importText(text: string, name: string, demo = false) {
-    setBusy(true); setError('');
+  function beginLoad() { const id = ++loadId.current; setImporting(true); setError(''); return id; }
+  function cancelImport() { loadId.current++; setImporting(false); setModal(null); if (importing) setNotice('Импорт отменён. Текущая работа сохранена.'); }
+  function loadFailed(id: number, error: unknown) { if (id === loadId.current) { setError(error instanceof Error ? error.message : 'Не удалось загрузить данные.'); setImporting(false); } }
+  function install(d: Dataset, w: Workspace, r: Result) {
+    processId.current++; prepared.current = { dataset: d, workspace: w };
+    setDataset(d); setWorkspace(w); setResult(r); setProcessing(false); setProcessingError(false); setImporting(false);
+    setHistory([]); setFuture([]); setSelected(null); setSelectedCol(null); setInspector('issues'); setPage(0); setIssuePage(0); setSearch(''); setFilter('all'); setModal(null); setPaste('');
+  }
+  async function importText(text: string, name: string, demo = false, id = beginLoad()) {
     try {
       const d = await engine<Dataset>('parse', { text, name, delimiter: demo ? ',' : delimiter });
+      if (id !== loadId.current) return;
+      const w = demo ? demoWorkspace(d.headers) : emptyWorkspace(d.headers);
+      const r = await engine<Result>('process', { dataset: d, workspace: w });
+      if (id !== loadId.current) return;
       if (optIn) clearPersistence();
-      setOptIn(false); setDataset(d); setWorkspace(demo ? demoWorkspace(d.headers) : emptyWorkspace(d.headers)); setResult(INITIAL); setHistory([]); setFuture([]); setSelected(null); setSelectedCol(null); setInspector('issues'); setPage(0); setIssuePage(0); setSearch(''); setFilter('all'); setModal(null); setPaste('');
+      setOptIn(false); install(d, w, r);
       setNotice(demo ? 'Искусственный пример загружен. 3 проверки уже настроены; исходные данные не изменены.' : 'CSV загружен. Настройте проверки колонок перед экспортом.');
-    } catch (e) { setError((e as Error).message); setBusy(false); }
+    } catch (e) { loadFailed(id, e); }
   }
   async function importFile(file?: File) {
     if (!file) return;
-    if (!/\.(csv|tsv|txt)$/i.test(file.name)) { setError('Загрузите текстовый .csv, .tsv или .txt. Excel .xlsx не поддерживается.'); return; }
-    if (file.size > LIMITS.bytes) { setError('Файл больше 2 МБ. Разделите его на несколько CSV.'); return; }
-    try { const text = new TextDecoder(encoding, { fatal: true }).decode(await file.arrayBuffer()); await importText(text, file.name); }
-    catch { setError('Не удалось прочитать файл. Выберите правильную кодировку: UTF-8 или Windows-1251.'); }
+    const id = beginLoad();
+    try {
+      if (!/\.(csv|tsv|txt)$/i.test(file.name)) throw new Error('Загрузите текстовый .csv, .tsv или .txt. Excel .xlsx не поддерживается.');
+      if (file.size > LIMITS.bytes) throw new Error('Файл больше 2 МБ. Разделите его на несколько CSV.');
+      let text: string;
+      try { text = new TextDecoder(encoding, { fatal: true }).decode(await file.arrayBuffer()); }
+      catch { throw new Error('Не удалось прочитать файл. Выберите правильную кодировку: UTF-8 или Windows-1251.'); }
+      if (id === loadId.current) await importText(text, file.name, false, id);
+    } catch (e) { loadFailed(id, e); }
   }
   function pasteCSV(event: React.ClipboardEvent<HTMLTextAreaElement>) {
     event.preventDefault();
@@ -116,13 +135,41 @@ function App() {
     requestAnimationFrame(() => { if (area.isConnected) area.setSelectionRange(start + inserted.length, start + inserted.length); });
   }
   async function importRecipeFile(file?: File) {
-    if (!file || !dataset || !workspace) return;
-    try { if (file.size > 256_000) throw new Error('Рецепт больше 256 КБ.'); const recipe = parseRecipe(await file.text(), dataset.headers); if (change({ ...workspace, recipe: { ...recipe, columns: [...dataset.headers] } })) setNotice('Рецепт применён. Ручные правки текущего файла сохранены.'); }
-    catch (e) { setError((e as Error).message); }
+    if (!file || !dataset || !workspace || busy) return;
+    const id = beginLoad();
+    try {
+      if (file.size > 256_000) throw new Error('Рецепт больше 256 КБ.');
+      const text = await file.text();
+      if (id !== loadId.current) return;
+      const recipe = parseRecipe(text, dataset.headers);
+      const next = { ...workspace, recipe: { ...recipe, columns: [...dataset.headers] } };
+      const r = await engine<Result>('process', { dataset, workspace: next });
+      if (id !== loadId.current) return;
+      if (change(next)) {
+        prepared.current = { dataset, workspace: next }; setResult(r); setProcessingError(false);
+        setNotice('Рецепт применён. Ручные правки текущего файла сохранены.');
+      }
+      setImporting(false);
+    } catch (e) { loadFailed(id, e); }
   }
-  async function restore(text: string, stored = false) {
-    try { const restored = restoreBackup(text); setOptIn(stored); setDataset(restored.dataset); setWorkspace(restored.workspace); setResult(INITIAL); setHistory([]); setFuture([]); setSelected(null); setSelectedCol(null); setSearch(''); setFilter('all'); setPage(0); setInspector('issues'); setModal(null); setNotice('Работа восстановлена. История undo начинается с этой точки.'); setSavedBackup(''); }
-    catch (e) { setError((e as Error).message); }
+  async function restore(text: string, stored = false, id = beginLoad()) {
+    try {
+      const restored = restoreBackup(text);
+      const r = await engine<Result>('process', { dataset: restored.dataset, workspace: restored.workspace });
+      if (id !== loadId.current) return;
+      if (optIn && !stored) clearPersistence();
+      setOptIn(stored); install(restored.dataset, restored.workspace, r);
+      setNotice('Работа восстановлена. История undo начинается с этой точки.'); setSavedBackup('');
+    } catch (e) { loadFailed(id, e); }
+  }
+  async function importBackupFile(file?: File) {
+    if (!file) return;
+    const id = beginLoad();
+    try {
+      if (file.size > 8 * 1024 * 1024) throw new Error('Резервная копия больше 8 МБ.');
+      const text = await file.text();
+      if (id === loadId.current) await restore(text, false, id);
+    } catch (e) { loadFailed(id, e); }
   }
   function selectRow(row: ProcessedRow, col: number | null = null) {
     setSelected(row.id); setSelectedCol(col ?? (row.issues[0]?.column ?? 0)); setInspector('row'); setFilter('all'); setSearch(''); setPage(Math.floor(result.rows.findIndex(r => r.id === row.id) / 20));
@@ -147,7 +194,7 @@ function App() {
   function setExcluded(id: number, reason?: string) { if (!workspace) return; const next = clone(workspace); if (reason) next.excluded[String(id)] = reason; else delete next.excluded[String(id)]; change(next); setModal(null); }
   const selectedRow = result.rows.find(r => r.id === selected);
   const duplicateIssue = selectedRow?.issues.find(i => i.code === 'unique');
-  const duplicateGroup = duplicateIssue ? result.rows.filter(r => !r.excluded && r.values[duplicateIssue.column!] === selectedRow!.values[duplicateIssue.column!]) : [];
+  const duplicateGroup = duplicateIssue ? result.rows.filter(r => !r.excluded && r.issues.some(i => i.code === 'unique' && i.column === duplicateIssue.column) && r.values[duplicateIssue.column!] === selectedRow!.values[duplicateIssue.column!]) : [];
   const visibleRows = result.rows.filter(r => (filter === 'all' || (filter === 'issues' && !r.excluded && r.issues.length > 0) || (filter === 'changed' && r.changedColumns.length > 0) || (filter === 'excluded' && r.excluded) || (filter === 'ready' && !r.excluded && !r.issues.length)) && (!search || r.values.some(v => v.toLocaleLowerCase().includes(search.toLocaleLowerCase())) || String(r.id) === search));
   const pages = Math.max(1, Math.ceil(visibleRows.length / 20)), safePage = Math.min(page, pages - 1);
   const stats = [ { label: 'Всего записей', value: dataset?.rows.length ?? '—', hint: dataset ? `${dataset.headers.length} колонок` : 'Загрузите CSV', kind: 'total' }, { label: 'Готовы к импорту', value: dataset ? result.ready.length : '—', hint: dataset ? 'Прошли настроенные проверки' : 'После проверки', kind: 'ready' }, { label: 'Требуют решения', value: dataset ? result.rejected.length : '—', hint: dataset ? `${result.issues.length} ошибок · ${result.rows.filter(r => r.excluded).length} исключено` : 'Ошибки и исключения', kind: 'error' }, { label: 'Изменено ячеек', value: dataset ? result.changedCells : '—', hint: dataset ? `${result.changedRows} записей · исходник сохранён` : 'Обратимая очистка', kind: 'changes' } ];
@@ -171,7 +218,7 @@ function App() {
     <header className="topbar"><a className="brand" href="./" aria-label="Rowline — главная"><span className="brand-mark"><Layers3 size={23}/></span>rowline<span className="beta">CSV WORKSPACE</span></a><div className="topbar-right"><span className="privacy"><LockKeyhole size={14}/> Данные остаются в браузере</span><button className="text-button" aria-label="Как это работает" onClick={() => setModal('help')}><CircleHelp size={17}/><span>Как это работает</span></button></div></header>
     <input type="file" ref={csvInput} accept=".csv,.tsv,.txt" hidden onChange={e => { importFile(e.target.files?.[0]); e.target.value = ''; }}/>
     <input type="file" ref={recipeInput} accept=".json,application/json" hidden onChange={e => { importRecipeFile(e.target.files?.[0]); e.target.value = ''; }}/>
-    <input type="file" ref={backupInput} accept=".json,application/json" hidden onChange={async e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { try { if (f.size > 8 * 1024 * 1024) throw new Error('Резервная копия больше 8 МБ.'); await restore(await f.text()); } catch (x) { setError((x as Error).message); } } }}/>
+    <input type="file" ref={backupInput} accept=".json,application/json" hidden onChange={e => { importBackupFile(e.target.files?.[0]); e.target.value = ''; }}/>
     <div className="app-shell">
       <aside className="recipe-panel" aria-label="Рецепт очистки"><div className="side-heading"><span className="eyebrow">ВАШ ПРОЦЕСС</span><span className="step-count">01 → 03</span></div><h2><Settings2 size={19}/> Рецепт очистки</h2><p className="muted">Правила идут сверху вниз.<br/>Исходные значения сохраняются.</p>
         <div className="recipe-actions"><button className="button secondary full" disabled={!dataset || busy || (workspace?.recipe.rules.length ?? 0) >= LIMITS.rules} onClick={() => { setRuleKind('trim'); setRuleCol('*'); setRuleFrom(''); setRuleTo(''); setRulePreview(null); setModal('rule'); }}><Plus size={17}/>Добавить правило</button></div>
@@ -206,7 +253,7 @@ function App() {
         <footer className="workspace-footer"><span><span className="live-dot"/>Локальная обработка{busy ? ' · обрабатываем…' : ' · никаких загрузок на сервер'}</span><span>Rowline · инструмент Бахтияра Зикирина</span></footer>
       </main>
     </div>
-    {modal === 'import' && <Modal title={dataset ? 'Загрузить новый CSV' : 'Загрузить данные'} close={() => setModal(null)} wide>{dataset && <div className="alert info">Новый CSV заменит текущую работу. Скачайте резервную копию, если хотите вернуться к ней.</div>}<div className="import-settings"><label className="field"><span>Разделитель</span><select aria-label="Разделитель" value={delimiter} onChange={e => setDelimiter(e.target.value as Delimiter)}><option value="">Определить автоматически</option><option value=",">Запятая (,)</option><option value=";">Точка с запятой (;)</option><option value={'\t'}>Табуляция</option><option value="|">Вертикальная черта (|)</option></select></label><label className="field"><span>Кодировка файла</span><select aria-label="Кодировка файла" value={encoding} onChange={e => setEncoding(e.target.value)}><option value="utf-8">UTF-8 (по умолчанию)</option><option value="windows-1251">Windows-1251</option></select></label></div><button className="button secondary full" onClick={() => csvInput.current?.click()} disabled={busy}><FolderOpen size={17}/>Выбрать CSV / TSV / TXT</button><div className="or">ИЛИ ВСТАВЬТЕ ТЕКСТ</div><label className="field"><span>CSV с заголовками в первой записи</span><textarea onPaste={pasteCSV} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap="off" className="paste-input" rows={8} value={paste} onChange={e => setPaste(e.target.value)} placeholder={'sku,name,stock\n00124,"Лампа, белая",12'}/></label><p className="small muted">До 2 МБ · 10 000 записей · 100 колонок · 500 000 ячеек. Кавычки и переносы внутри ячеек поддерживаются. Данные не преобразуются в числа или даты.</p><div className="modal-actions"><button className="text-button" onClick={() => backupInput.current?.click()}>Восстановить копию JSON</button><button className="button primary" disabled={!paste.trim() || busy} onClick={() => importText(paste, 'вставка.csv')}><ArrowRight size={17}/>Загрузить текст</button></div>{error && <p className="inline-error" role="alert">{error}</p>}</Modal>}
+    {modal === 'import' && <Modal title={dataset ? 'Загрузить новый CSV' : 'Загрузить данные'} close={cancelImport} wide>{dataset && <div className="alert info">Новый CSV заменит текущую работу. Скачайте резервную копию, если хотите вернуться к ней.</div>}<div className="import-settings"><label className="field"><span>Разделитель</span><select aria-label="Разделитель" value={delimiter} onChange={e => setDelimiter(e.target.value as Delimiter)}><option value="">Определить автоматически</option><option value=",">Запятая (,)</option><option value=";">Точка с запятой (;)</option><option value={'\t'}>Табуляция</option><option value="|">Вертикальная черта (|)</option></select></label><label className="field"><span>Кодировка файла</span><select aria-label="Кодировка файла" value={encoding} onChange={e => setEncoding(e.target.value)}><option value="utf-8">UTF-8 (по умолчанию)</option><option value="windows-1251">Windows-1251</option></select></label></div><button className="button secondary full" onClick={() => csvInput.current?.click()} disabled={busy}><FolderOpen size={17}/>Выбрать CSV / TSV / TXT</button><div className="or">ИЛИ ВСТАВЬТЕ ТЕКСТ</div><label className="field"><span>CSV с заголовками в первой записи</span><textarea onPaste={pasteCSV} spellCheck={false} autoCapitalize="off" autoCorrect="off" wrap="off" className="paste-input" rows={8} value={paste} onChange={e => setPaste(e.target.value)} placeholder={'sku,name,stock\n00124,"Лампа, белая",12'}/></label><p className="small muted">До 2 МБ · 10 000 записей · 100 колонок · 500 000 ячеек. Кавычки и переносы внутри ячеек поддерживаются. Данные не преобразуются в числа или даты.</p><div className="modal-actions"><button className="text-button" onClick={() => backupInput.current?.click()}>Восстановить копию JSON</button><button className="button primary" disabled={!paste.trim() || busy} onClick={() => importText(paste, 'вставка.csv')}><ArrowRight size={17}/>Загрузить текст</button></div>{error && <p className="inline-error" role="alert">{error}</p>}</Modal>}
     {modal === 'rule' && dataset && workspace && <Modal title="Добавить правило очистки" close={() => setModal(null)} wide><div className="field-row"><label className="field"><span>Действие</span><select aria-label="Действие" value={ruleKind} onChange={e => setRuleKind(e.target.value as RuleKind)}>{Object.entries(RULE_NAMES).map(([k, v]) => <option value={k} key={k}>{v}</option>)}</select></label><label className="field"><span>Колонка</span><select aria-label="Колонка" value={ruleCol} onChange={e => setRuleCol(e.target.value)} disabled={ruleKind === 'empty'}><option value="*">Все колонки</option>{dataset.headers.map(h => <option key={h}>{h}</option>)}</select></label></div>{ruleKind === 'replace' && <label className="field"><span>Точное значение для замены</span><input value={ruleFrom} onChange={e => setRuleFrom(e.target.value)}/></label>}{['replace', 'fill'].includes(ruleKind) && <label className="field"><span>Новое значение</span><input value={ruleTo} onChange={e => setRuleTo(e.target.value)}/></label>}{error && <p className="inline-error" role="alert">{error}</p>}<div className="preview-box"><div className="preview-title"><Sparkles size={16}/><strong>Предпросмотр изменения</strong><span>{previewBusy || !rulePreview ? 'Считаем…' : `${rulePreview.rows.reduce((n, r, i) => n + r.values.filter((v, c) => v !== result.rows[i]?.values[c]).length, 0)} ячеек`}</span></div>{rulePreview && <><div className="preview-table" role="region" tabIndex={0} aria-label="Таблица изменений: горизонтальная прокрутка"><table><thead><tr><th>Запись / колонка</th><th>Сейчас</th><th>После правила</th></tr></thead><tbody>{rulePreview.rows.flatMap((r, i) => r.values.flatMap((v, c) => v !== result.rows[i]?.values[c] ? [{ id: r.id, col: dataset.headers[c], before: result.rows[i]?.values[c], after: v }] : [])).slice(0, 5).map((c, i) => <tr key={i}><td>#{c.id} · {c.col}</td><td><del>{c.before || '∅'}</del></td><td>{c.after || '∅'}</td></tr>)}</tbody></table></div><p className="small muted">Будет готово: {rulePreview.ready.length}. Отклонено: {rulePreview.rejected.length}. {ruleKind === 'empty' ? `Пустых записей будет исключено: ${rulePreview.rows.filter(r => r.excluded && !result.rows.find(x => x.id === r.id)?.excluded).length}. Они сохранятся в отклонённых.` : 'Показаны первые 5 изменений. Исходные значения сохранены.'}</p></>}</div><div className="modal-actions"><button className="button secondary" onClick={() => setModal(null)}>Отмена</button><button className="button primary" disabled={!rulePreview || previewBusy || busy || ((ruleKind === 'replace' || ruleKind === 'fill') && ruleTo.length > 10_000) || ruleFrom.length > 10_000} onClick={addRule}><Check size={17}/>Применить правило</button></div></Modal>}
     {modal === 'export' && dataset && workspace && <Modal title="Экспорт готов к проверке" close={() => setModal(null)} wide><div className="export-summary"><div><span>ОЧИЩЕННЫЙ CSV</span><strong>{result.ready.length}</strong><small>готовых записей</small></div><ArrowRight size={22}/><div><span>ОТКЛОНЁННЫЕ</span><strong>{result.rejected.length}</strong><small>с причинами и исходными данными</small></div></div><p className="small muted">Все {dataset.rows.length} записей учтены. Очищенный файл включает только готовые записи. {workspace.recipe.validations.length ? `Настроено проверок колонок: ${workspace.recipe.validations.length}.` : 'Проверки содержания не настроены: проверена только структура CSV.'}</p><div className="field-row"><label className="field"><span>Разделитель экспорта</span><select aria-label="Разделитель экспорта" value={exportOptions.delimiter} onChange={e => setExportOptions({ ...exportOptions, delimiter: e.target.value as ExportOptions['delimiter'] })}><option value=";">Точка с запятой — Excel RU</option><option value=",">Запятая — стандарт CSV / Excel EN</option><option value={'\t'}>Табуляция — TSV</option><option value="|">Вертикальная черта</option></select></label><label className="field"><span>Перенос строк</span><select aria-label="Перенос строк" value={exportOptions.newline} onChange={e => setExportOptions({ ...exportOptions, newline: e.target.value as ExportOptions['newline'] })}><option value={'\r\n'}>CRLF — Windows / Excel</option><option value={'\n'}>LF — Unix</option></select></label></div><div className="export-checks"><label><input type="checkbox" checked={exportOptions.bom} onChange={e => setExportOptions({ ...exportOptions, bom: e.target.checked })}/><span>UTF-8 BOM для корректной кириллицы в Excel</span></label><label><input type="checkbox" checked={exportOptions.safe} onChange={e => setExportOptions({ ...exportOptions, safe: e.target.checked })}/><span>Защищать от формул в электронных таблицах</span></label></div><div className={`alert ${exportOptions.safe ? 'info' : 'warning'}`}><ShieldCheck size={18}/><span>{exportOptions.safe ? `Перед ${formulaCount(dataset.headers, result.ready.map(r => r.values))} потенциальными формулами в очищенном CSV добавится апостроф. Это меняет значение, включая отрицательные числа. Для точного переноса в доверенную систему можно отключить опцию.` : 'Формулы не защищены. Открытие недоверенных =, +, −, @ и управляющих символов в Excel может выполнить формулу. Используйте этот режим только для доверенного импорта.'} Защита также применяется к заголовкам и отклонённым строкам.</span></div>{exportHeaderCollision(dataset.headers, exportOptions.safe) && <div className="alert warning" role="alert">Защита формул создаёт одинаковые заголовки. Очищенный CSV заблокирован. Исправьте исходные имена или явно отключите защиту для доверенного импорта.</div>}{error && <p className="inline-error" role="alert">{error}</p>}<div className="export-buttons"><button className="button primary" disabled={busy || !result.ready.length || exportHeaderCollision(dataset.headers, exportOptions.safe)} onClick={() => exportFile('clean')}><ArrowDownToLine size={18}/>Очищенный CSV<span>{result.ready.length}</span></button><button className="button secondary" disabled={busy} onClick={() => exportFile('rejected')}><TriangleAlert size={17}/>Отклонённые строки<span>{result.rejected.length}</span></button><button className="button secondary" disabled={busy} onClick={() => exportFile('report')}><FileJson size={17}/>Отчёт JSON</button><button className="button secondary" disabled={busy} onClick={() => exportFile('recipe')}><Settings2 size={17}/>Рецепт JSON</button></div><p className="small muted">Рецепт хранит правила и проверки, без строк и ручных исправлений. Отчёт включает номера записей, ошибки и колонки изменений. Отклонённые: исходная запись в JSON + очищенные значения. Все экспорты остаются на вашем устройстве.</p></Modal>}
     {modal === 'help' && <Modal title="От CSV к уверенному импорту" close={() => setModal(null)} wide><ol className="help-steps"><li><strong>Загрузите файл или откройте пример.</strong><p>Первая запись — заголовки с уникальными непустыми именами. Поддерживаются запятая, точка с запятой, табуляция и |, UTF-8 и Windows-1251. XLSX, UTF-16 и архивы не поддерживаются.</p></li><li><strong>Настройте требования к колонкам.</strong><p>Обязательность, уникальность, текст / целое число / десятичное число с точкой / дата YYYY-MM-DD / синтаксис email и допустимые значения. Выберите имя колонки в таблице. Даты и числа не меняют исходные значения.</p></li><li><strong>Очистите и разберите проблемы.</strong><p>Правила применяются по порядку; сначала увидите предпросмотр. Нажмите проблему для исправления ячейки, осознанного выбора дубликата или исключения с причиной. Ручные исправления идут после правил. Undo / redo хранит до 50 действий в текущей сессии.</p></li><li><strong>Скачайте результат.</strong><p>Готовые и отклонённые записи выгружаются отдельно. Очищенный CSV не включает записи с ошибками. Отчёт и рецепт объясняют результат. Рецепт повторно применяется к файлам с теми же именами колонок, даже в другом порядке; дополнительные колонки допустимы. Правила «Все колонки» затронут их тоже.</p></li></ol><div className="alert info"><LockKeyhole size={18}/><span>Данные в памяти вкладки по умолчанию. Для восстановления после закрытия включите «Сохранять эту работу на устройстве» — тогда исходник и правки попадут в хранилище этого браузера. Снимите галочку, чтобы удалить сохранение. Резервная копия содержит данные, рецепт может содержать значения замен — обращайтесь с ними как со своими файлами.</span></div><p className="small muted">Лимит: 2 МБ, 10 000 записей, 100 колонок, 500 000 ячеек; очищенные значения до 8 МБ; ручная правка и значение правила до 10 000 символов. Номер — логическая запись CSV с заголовком №1, а не физическая строка: переносы внутри кавычек не увеличивают номер. Проверка email — только синтаксис, без проверки существования. Инструмент не гарантирует требования вашей внешней системы: задайте их явно.</p><button className="button primary full" onClick={() => setModal(null)}>Понятно</button></Modal>}

@@ -1,0 +1,143 @@
+{
+  "baseline": "773ba67fdafe46c1cc4ada869636439e1f3d8991",
+  "testSourceSha256": "7e5a414491b1bc9b297064313677584ad1b68857099dd0611891677874d6aef8",
+  "edgeVersion": "155.0.4283.62",
+  "protectedFiles": [
+    {
+      "path": "src/core.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": "src/worker.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": "src/style.css",
+      "textUnchanged": true
+    },
+    {
+      "path": "package.json",
+      "textUnchanged": true
+    },
+    {
+      "path": "package-lock.json",
+      "textUnchanged": true
+    },
+    {
+      "path": "index.html",
+      "textUnchanged": true
+    },
+    {
+      "path": "vite.config.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": "tests/core.test.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": "tests/security-audit.test.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": "tests/e2e/flows.spec.ts",
+      "textUnchanged": true
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "textUnchanged": true
+    },
+    {
+      "path": "examples/demo_inventory.csv",
+      "textUnchanged": true
+    },
+    {
+      "path": "examples/inventory-recipe.json",
+      "textUnchanged": true
+    }
+  ],
+  "assets": {
+    "before": {
+      "index-D2nkCHIP.js": {
+        "bytes": 313289,
+        "sha256": "b0cf24d84222a79565ad0037d3339b43217d499379cf4c4965fd4845d0c00796"
+      },
+      "worker-CP99hlZw.js": {
+        "bytes": 26029,
+        "sha256": "09f2ece66cfc4323914f31f3a612712ac2b7a17ec302f859b57079b86e3fbf13"
+      }
+    },
+    "after": {
+      "index-CMnRC2t-.js": {
+        "bytes": 314336,
+        "sha256": "4348f9a946e4cfbfbcf5067a9ee9311588f1ae947cdd63bf9b1eb579fa211f63"
+      },
+      "worker-CP99hlZw.js": {
+        "bytes": 26029,
+        "sha256": "09f2ece66cfc4323914f31f3a612712ac2b7a17ec302f859b57079b86e3fbf13"
+      }
+    }
+  },
+  "frames": {
+    "after-desktop-cancel-process-one-row.png": "aac971a1fb4bacfb7a4d365e0f7e32d56a472613a46ffa029100816534324d1d",
+    "after-desktop-demo.png": "9d9afc463221bece62b9b948c34bf236b974b6cae99a0582e1afe21760169867",
+    "after-desktop-duplicate.png": "a356504dfb9d2f6291ab2364585b111c24a64eaafc021de83ae964373406c2bd",
+    "after-desktop-empty.png": "b9fb74419e10b7f8a8a319df80559df5c2e8cc09f6e7a64158443435b13c8355",
+    "after-desktop-export.png": "4490cf5e1429ab4d69bc04de95d2ee4773100f792017c0afaa8b33f0f63ff4e5",
+    "after-desktop-interrupted-import.png": "232cff409eb7aa07deec5ce0bea0934dc2ca7c4e75ded3066653f2f59ba6bc82",
+    "after-desktop-structure.png": "6eab3cf1f15c0d04bd82be5c5cae232a8cbe47164dc935728373d2585b27af31",
+    "after-touch-cancel-process-one-row.png": "7c180e4e1d22b85708bd5eb8fceae8e143051925581619e365fcdeb8aadf4b8d",
+    "after-touch-demo.png": "e62c8d930ed35d865cba48ccb3a10ffa8ae4f3c4dd79f7e97fdc64e4d05e412a",
+    "after-touch-duplicate.png": "f181daf81ba28bac7c9556c0f8681fb712c7143c7f4d60aa2278bb73c232d329",
+    "after-touch-empty.png": "a2c903acf3eb36cd6248cd3a58ec5ed37b4ed5aa03369e176b066d401b2cbfe5",
+    "after-touch-export.png": "69202f90a65e56ff8fac86dedf1d6220c81dceedbde050be0851999057a85baa",
+    "after-touch-interrupted-import.png": "dc86bc601b55cfd71bd9c8efeb64d9fb7fb69e91fb8eea6251fa41b49f4bab4e",
+    "after-touch-structure.png": "f8717634a70665c280b65b99a189fb96ad2373c37a6ca2a0f151e92598b2e383",
+    "before-desktop-demo.png": "9d9afc463221bece62b9b948c34bf236b974b6cae99a0582e1afe21760169867",
+    "before-desktop-duplicate.png": "5c7e5eb70b1f4399464e77316e0c5eb180afb8a9a6263b7fe6f3002b3dee76e3",
+    "before-desktop-empty.png": "b9fb74419e10b7f8a8a319df80559df5c2e8cc09f6e7a64158443435b13c8355",
+    "before-desktop-interrupted-import.png": "0745ab76c7258d1ed53560709b492b3b1ba524420e45e46692c9d6c80096a6e7",
+    "before-desktop-structure.png": "0869875adbf9031f7211be5f61f625a400a8f43ddc976b018f161d50fe4183b1",
+    "before-touch-demo.png": "e62c8d930ed35d865cba48ccb3a10ffa8ae4f3c4dd79f7e97fdc64e4d05e412a",
+    "before-touch-duplicate.png": "4160beae1ff9273e1d4c0204c8dee0de0cc5b526f7c57b21d12ba83edbfbb4e2",
+    "before-touch-empty.png": "a2c903acf3eb36cd6248cd3a58ec5ed37b4ed5aa03369e176b066d401b2cbfe5",
+    "before-touch-interrupted-import.png": "c4f3d035288e3ed80ac6832586c4ceb53443fa574115171c282272ca6f380298",
+    "before-touch-structure.png": "596ca8cdb589a21427c68150449b0dd2b3c6d79245273e0c8eb323949f131c2e"
+  },
+  "probe": {
+    "desktop": {
+      "structuralRowWronglyExcluded": {
+        "before": true,
+        "after": false
+      }
+    },
+    "touch": {
+      "structuralRowWronglyExcluded": {
+        "before": true,
+        "after": false
+      }
+    }
+  },
+  "tests": {
+    "baselineCore": {
+      "passed": 29
+    },
+    "baselineOldEdge": {
+      "passed": 22
+    },
+    "baselineNewEdge": {
+      "failed": 10,
+      "timedOut": 2,
+      "passed": 2
+    },
+    "finalCore": {
+      "passed": 29
+    },
+    "finalEdge": {
+      "passed": 42
+    },
+    "finalSixProfiles": {
+      "passed": 126
+    }
+  }
+}
